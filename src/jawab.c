@@ -12,14 +12,8 @@
 #include <unistd.h>
 #endif
 
-/* UTF-8 safe: any byte > 127 counts as a word char (handles Arabic etc.) */
 #define ISW(c) (isalnum((unsigned char)(c)) || (unsigned char)(c) > 127)
 
-/* ============================================================
- * SIMD gating: AVX2 on x86_64, NEON on ARM64, portable scalar
- * fallback otherwise. No external deps -- these are compiler-
- * provided intrinsic headers, not libraries.
- * ============================================================ */
 #if defined(__AVX2__) && (defined(__x86_64__) || defined(_M_X64))
   #include <immintrin.h>
   #define JAWAB_SIMD_AVX2 1
@@ -28,9 +22,6 @@
   #define JAWAB_SIMD_NEON 1
 #endif
 
-/* Vectorized exact string equality, used on the BM25 hot path
- * (count_occ). Falls back to memcmp when SIMD isn't available
- * or the strings are shorter than one vector width. */
 static inline int jw_streq(const char *a, const char *b) {
     size_t la = strlen(a), lb = strlen(b);
     if (la != lb) return 0;
@@ -55,14 +46,16 @@ static inline int jw_streq(const char *a, const char *b) {
     return memcmp(a + i, b + i, la - i) == 0;
 }
 
-/* ---------------- FNV-1a ---------------- */
+/* FNV-1a 64-bit. Offset basis MUST be 14695981039346656037 (0xcbf29ce484222325).
+ * v0.3.0 through v0.3.1 shipped a truncated constant (1469598103934665603,
+ * missing a trailing digit), which silently produced a non-standard hash.
+ * Fixed and covered by tests/test_jawab.c against reference vectors. */
 uint64_t jw_fnv1a(const char *s){
-    uint64_t h = 1469598103934665603ULL;
+    uint64_t h = 14695981039346656037ULL;
     while (*s){ h ^= (unsigned char)*s++; h *= 1099511628211ULL; }
     return h;
 }
 
-/* ---------------- SHA-256 ---------------- */
 #define ROR(x,n) (((x)>>(n)) | ((x)<<(32-(n))))
 static const uint32_t SHA_K[64] = {
 0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
@@ -128,7 +121,6 @@ void jw_sha_hex(const uint8_t in[32], char out[65]){
     out[64] = 0;
 }
 
-/* ---------------- Tokenizer ---------------- */
 static int tok_step(const char *s, size_t *i, char *buf, size_t cap){
     size_t n = 0;
     while (s[*i] && !ISW(s[*i])) (*i)++;
@@ -137,7 +129,6 @@ static int tok_step(const char *s, size_t *i, char *buf, size_t cap){
     return n > 0;
 }
 
-/* ---------------- In-memory index (build path) ---------------- */
 void jw_init(jw_index_t *ix){ ix->v=NULL; ix->n=0; ix->cap=0; ix->avglen=1.0; }
 
 void jw_free(jw_index_t *ix){
@@ -249,13 +240,8 @@ size_t jw_query(const jw_index_t *ix, const char *query, jw_hit_t *out, size_t k
     return found;
 }
 
-/* ============================================================
- * v0.3: persistent zero-copy binary index
- * ============================================================ */
-
 int jw_index_save(const jw_index_t *ix, const char *path){
     if (!ix || !path) return -1;
-
     uint64_t *orig_off = malloc(ix->n * sizeof *orig_off);
     uint64_t *low_off  = malloc(ix->n * sizeof *low_off);
     uint64_t *src_off  = malloc(ix->n * sizeof *src_off);
@@ -263,7 +249,6 @@ int jw_index_save(const jw_index_t *ix, const char *path){
         free(orig_off); free(low_off); free(src_off);
         return -1;
     }
-
     uint64_t cursor = 0;
     for (size_t i = 0; i < ix->n; i++){
         orig_off[i] = cursor; cursor += strlen(ix->v[i].orig) + 1;
@@ -271,7 +256,6 @@ int jw_index_save(const jw_index_t *ix, const char *path){
         src_off[i]  = cursor; cursor += strlen(ix->v[i].src)  + 1;
     }
     uint64_t blob_len = cursor;
-
     jw_idx_header_t hdr;
     memset(&hdr, 0, sizeof hdr);
     memcpy(hdr.magic, JW_IDX_MAGIC, 8);
@@ -285,9 +269,7 @@ int jw_index_save(const jw_index_t *ix, const char *path){
 
     FILE *f = fopen(path, "wb");
     if (!f){ free(orig_off); free(low_off); free(src_off); return -1; }
-
     if (fwrite(&hdr, sizeof hdr, 1, f) != 1) goto fail;
-
     for (size_t i = 0; i < ix->n; i++){
         jw_idx_rec_t rec;
         memset(&rec, 0, sizeof rec);
@@ -299,7 +281,6 @@ int jw_index_save(const jw_index_t *ix, const char *path){
         memcpy(rec.sha, ix->v[i].sha, 32);
         if (fwrite(&rec, sizeof rec, 1, f) != 1) goto fail;
     }
-
     for (size_t i = 0; i < ix->n; i++){
         size_t lo = strlen(ix->v[i].orig)+1;
         size_t ll = strlen(ix->v[i].low)+1;
@@ -308,11 +289,9 @@ int jw_index_save(const jw_index_t *ix, const char *path){
         if (fwrite(ix->v[i].low,  1, ll, f) != ll) goto fail;
         if (fwrite(ix->v[i].src,  1, ls, f) != ls) goto fail;
     }
-
     free(orig_off); free(low_off); free(src_off);
     fclose(f);
     return 0;
-
 fail:
     free(orig_off); free(low_off); free(src_off);
     fclose(f);
@@ -320,30 +299,22 @@ fail:
 }
 
 #if defined(_WIN32)
-
 int jw_mmap_open(jw_mmap_index_t *mix, const char *path){
     memset(mix, 0, sizeof *mix);
     HANDLE fh = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL,
                              OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (fh == INVALID_HANDLE_VALUE) return -1;
-
     LARGE_INTEGER sz;
     if (!GetFileSizeEx(fh, &sz)){ CloseHandle(fh); return -1; }
-
     HANDLE mh = CreateFileMappingA(fh, NULL, PAGE_READONLY, 0, 0, NULL);
     if (!mh){ CloseHandle(fh); return -1; }
-
     void *base = MapViewOfFile(mh, FILE_MAP_READ, 0, 0, 0);
     if (!base){ CloseHandle(mh); CloseHandle(fh); return -1; }
-
-    mix->file_handle = fh;
-    mix->map_handle  = mh;
-    mix->base = base;
+    mix->file_handle = fh; mix->map_handle = mh; mix->base = base;
     mix->size = (size_t)sz.QuadPart;
     mix->header  = (const jw_idx_header_t *)base;
     mix->records = (const jw_idx_rec_t *)((const char *)base + mix->header->passage_table_off);
     mix->blob    = (const char *)base + mix->header->blob_off;
-
     if (mix->size < sizeof(jw_idx_header_t) ||
         memcmp(mix->header->magic, JW_IDX_MAGIC, 8) != 0 ||
         mix->header->version != JW_IDX_VERSION){
@@ -352,34 +323,25 @@ int jw_mmap_open(jw_mmap_index_t *mix, const char *path){
     }
     return 0;
 }
-
 void jw_mmap_close(jw_mmap_index_t *mix){
     if (mix->base) UnmapViewOfFile(mix->base);
     if (mix->map_handle) CloseHandle(mix->map_handle);
     if (mix->file_handle) CloseHandle(mix->file_handle);
     memset(mix, 0, sizeof *mix);
 }
-
-#else /* POSIX */
-
+#else
 int jw_mmap_open(jw_mmap_index_t *mix, const char *path){
     memset(mix, 0, sizeof *mix);
     int fd = open(path, O_RDONLY);
     if (fd < 0) return -1;
-
     struct stat st;
     if (fstat(fd, &st) != 0){ close(fd); return -1; }
-
     void *base = mmap(NULL, (size_t)st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
     if (base == MAP_FAILED){ close(fd); return -1; }
-
-    mix->fd = fd;
-    mix->base = base;
-    mix->size = (size_t)st.st_size;
+    mix->fd = fd; mix->base = base; mix->size = (size_t)st.st_size;
     mix->header  = (const jw_idx_header_t *)base;
     mix->records = (const jw_idx_rec_t *)((const char *)base + mix->header->passage_table_off);
     mix->blob    = (const char *)base + mix->header->blob_off;
-
     if (mix->size < sizeof(jw_idx_header_t) ||
         memcmp(mix->header->magic, JW_IDX_MAGIC, 8) != 0 ||
         mix->header->version != JW_IDX_VERSION){
@@ -388,13 +350,11 @@ int jw_mmap_open(jw_mmap_index_t *mix, const char *path){
     }
     return 0;
 }
-
 void jw_mmap_close(jw_mmap_index_t *mix){
     if (mix->base) munmap(mix->base, mix->size);
     if (mix->fd) close(mix->fd);
     memset(mix, 0, sizeof *mix);
 }
-
 #endif
 
 static size_t count_occ_ptr(const char *low, const char *term){
@@ -406,20 +366,15 @@ size_t jw_mmap_query(const jw_mmap_index_t *mix, const char *query,
     if (!mix || !mix->header || !mix->records) return 0;
     size_t n = (size_t)mix->header->n_passages;
     double avglen = mix->header->avglen;
-
-    char lq[2048];
-    size_t j = 0;
+    char lq[2048]; size_t j = 0;
     for (size_t i = 0; query[i] && j < sizeof lq - 1; i++)
         lq[j++] = (char)tolower((unsigned char)query[i]);
     lq[j] = 0;
-
     char q[JAWAB_MAX_QUERY][JAWAB_MAX_TERM];
-    size_t nq = 0, i = 0;
-    char buf[JAWAB_MAX_TERM];
+    size_t nq = 0, i = 0; char buf[JAWAB_MAX_TERM];
     while (nq < JAWAB_MAX_QUERY && tok_step(lq, &i, buf, sizeof buf))
         strcpy(q[nq++], buf);
     if (!nq || !n) return 0;
-
     double df[JAWAB_MAX_QUERY];
     for (size_t t = 0; t < nq; t++){
         df[t] = 0;
@@ -428,7 +383,6 @@ size_t jw_mmap_query(const jw_mmap_index_t *mix, const char *query,
             if (count_occ_ptr(low, q[t])) df[t]++;
         }
     }
-
     const double k1 = 1.5, b = 0.75;
     size_t found = 0;
     for (size_t d = 0; d < n; d++){
@@ -444,21 +398,16 @@ size_t jw_mmap_query(const jw_mmap_index_t *mix, const char *query,
             s += idf * tfn;
         }
         if (s <= 0) continue;
-
         jw_mmap_hit_t hit;
-        hit.rec = rec;
-        hit.orig = mix->blob + rec->orig_off;
-        hit.low  = mix->blob + rec->low_off;
-        hit.src  = mix->blob + rec->src_off;
+        hit.rec = rec; hit.orig = mix->blob + rec->orig_off;
+        hit.low = mix->blob + rec->low_off; hit.src = mix->blob + rec->src_off;
         hit.score = s;
-
         size_t pos;
         if (found < k){
             pos = found;
             while (pos > 0 && out[pos-1].score < s) pos--;
             for (size_t m = found; m > pos; m--) out[m] = out[m-1];
-            out[pos] = hit;
-            found++;
+            out[pos] = hit; found++;
         } else if (s > out[k-1].score){
             pos = k;
             while (pos > 0 && out[pos-1].score < s) pos--;
