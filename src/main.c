@@ -1,56 +1,61 @@
 #include "jawab.h"
-
 #include <stdio.h>
 #include <string.h>
 
-#define JAWAB_MATCH_THRESHOLD 0.15
-
-static void print_banner(void) {
-    printf("jawab - minimal C11 question-answering engine\n");
-    printf("Type a question, or ':q' to quit.\n\n");
+static void usage(void){
+    fprintf(stderr,
+        "jawab v0.2 - deterministic offline retrieval (BM25 + SHA-256 receipts)\n"
+        "usage:\n"
+        "  jawab ask \"query\" file1.txt [file2.txt ...]\n"
+        "  jawab audit file1.txt [file2.txt ...]\n");
 }
 
-int main(int argc, char **argv) {
-    const char *corpus_path = (argc > 1) ? argv[1] : "corpus/seed.txt";
+int main(int argc, char **argv){
+    if (argc < 3){ usage(); return 2; }
+    const char *cmd = argv[1];
+    const char *query = NULL;
+    int first_file;
 
-    jawab_corpus_t corpus;
-    if (jawab_corpus_init(&corpus, 128) != 0) {
-        fprintf(stderr, "jawab: failed to allocate corpus\n");
-        return 1;
+    if (!strcmp(cmd, "ask")){
+        if (argc < 4){ usage(); return 2; }
+        query = argv[2];
+        first_file = 3;
+    } else if (!strcmp(cmd, "audit")){
+        first_file = 2;
+    } else { usage(); return 2; }
+
+    jw_index_t ix; jw_init(&ix);
+    int total = 0;
+    for (int i = first_file; i < argc; i++){
+        int n = jw_add_file(&ix, argv[i]);
+        if (n < 0) fprintf(stderr, "[jawab] cannot read: %s\n", argv[i]);
+        else total += n;
     }
+    if (!total){ fprintf(stderr, "[jawab] empty corpus\n"); jw_free(&ix); return 1; }
 
-    if (jawab_corpus_load(&corpus, corpus_path) != 0) {
-        fprintf(stderr, "jawab: could not load corpus from '%s'\n", corpus_path);
-        jawab_corpus_free(&corpus);
-        return 1;
-    }
-
-    fprintf(stderr, "jawab: loaded %zu entries from '%s'\n", corpus.count, corpus_path);
-
-    print_banner();
-
-    char line[JAWAB_MAX_LINE];
-    while (1) {
-        printf("> ");
-        if (!fgets(line, sizeof(line), stdin)) break;
-
-        size_t len = strlen(line);
-        while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r')) {
-            line[--len] = '\0';
+    if (!query){ /* audit mode */
+        for (size_t i = 0; i < ix.n; i++){
+            char hex[65]; jw_sha_hex(ix.v[i].sha, hex);
+            printf("%016lx  %s  | %s\n", ix.v[i].fp, hex, ix.v[i].orig);
         }
-        if (len == 0) continue;
-        if (strcmp(line, ":q") == 0 || strcmp(line, ":quit") == 0) break;
-
-        double score = 0.0;
-        const char *answer = jawab_answer(&corpus, line, &score);
-
-        if (!answer || score < JAWAB_MATCH_THRESHOLD) {
-            printf("لا أعرف الإجابة على هذا. (no confident match, score=%.2f)\n", score);
-        } else {
-            printf("%s  [score=%.2f]\n", answer, score);
-        }
+        jw_free(&ix);
+        return 0;
     }
 
-    jawab_corpus_free(&corpus);
+    jw_hit_t hits[JAWAB_TOPK];
+    size_t n = jw_query(&ix, query, hits, JAWAB_TOPK);
+    printf("[jawab] %d passages | query: %s\n\n", total, query);
+    if (!n){
+        printf("NO_MATCH score=0.0000 (deterministic empty result)\n");
+        jw_free(&ix);
+        return 0;
+    }
+    for (size_t r = 0; r < n; r++){
+        char hex[65]; jw_sha_hex(hits[r].p->sha, hex);
+        printf("#%zu score=%.4f fp=%016lx sha256=%s\n    src : %s\n    text: %s\n\n",
+               r+1, hits[r].score, hits[r].p->fp, hex,
+               hits[r].p->src, hits[r].p->orig);
+    }
+    jw_free(&ix);
     return 0;
 }

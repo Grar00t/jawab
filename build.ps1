@@ -1,51 +1,12 @@
-# build.ps1 - Windows build script for jawab
-# Usage: .\build.ps1 [-Clean] [-Run]
+# build.ps1 - jawab v0.2 (MSVC with gcc fallback)
+$ErrorActionPreference = "Stop"
+Set-Location $PSScriptRoot
 
-param(
-    [switch]$Clean,
-    [switch]$Run
-)
-
-$BuildDir = "build"
-$Bin = Join-Path $BuildDir "jawab.exe"
-$Sources = @("src/jawab.c", "src/main.c")
-
-if ($Clean) {
-    if (Test-Path $BuildDir) {
-        Remove-Item -Recurse -Force $BuildDir
-        Write-Host "Cleaned $BuildDir"
-    }
-    exit 0
+if (Get-Command cl -ErrorAction SilentlyContinue) {
+    cl /nologo /O2 /std:c11 /W4 /D_CRT_SECURE_NO_WARNINGS src\main.c src\jawab.c /Fe:jawab.exe
+} elseif (Get-Command gcc -ErrorAction SilentlyContinue) {
+    gcc -O2 -std=c11 -Wall src/main.c src/jawab.c -o jawab.exe -lm
+} else {
+    throw "no compiler found (cl / gcc)"
 }
-
-if (-not (Test-Path $BuildDir)) {
-    New-Item -ItemType Directory -Path $BuildDir | Out-Null
-}
-
-$cc = Get-Command gcc -ErrorAction SilentlyContinue
-if (-not $cc) {
-    $cc = Get-Command clang -ErrorAction SilentlyContinue
-}
-
-if (-not $cc) {
-    Write-Error "No C compiler found (gcc or clang). Install MinGW-w64 or LLVM and add it to PATH."
-    exit 1
-}
-
-$compiler = $cc.Name
-Write-Host "Using compiler: $compiler"
-
-$flags = @("-std=c11", "-Wall", "-Wextra", "-O2", "-Isrc", "-o", $Bin) + $Sources
-
-& $compiler.Replace(".exe","") @flags
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Build failed."
-    exit $LASTEXITCODE
-}
-
-Write-Host "Build succeeded: $Bin"
-
-if ($Run) {
-    & $Bin "corpus/seed.txt"
-}
+Write-Host "[jawab] build ok"

@@ -2,54 +2,40 @@
 #define JAWAB_H
 
 #include <stddef.h>
+#include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#define JAWAB_MAX_TERM   128
+#define JAWAB_MAX_QUERY  64
+#define JAWAB_TOPK       3
 
-#define JAWAB_MAX_LINE    2048
-#define JAWAB_MAX_TOKENS  64
-#define JAWAB_TOKEN_LEN   64
-
-/* A single question/answer pair loaded from the corpus. */
 typedef struct {
-    char *question;
-    char *answer;
-} jawab_entry_t;
+    char    *orig;    /* النص الأصلي كما هو */
+    char    *low;     /* نسخة مخفوضة للتقطيع */
+    char    *src;     /* اسم الملف المصدر */
+    size_t   ntok;
+    uint64_t fp;      /* بصمة FNV-1a سريعة */
+    uint8_t  sha[32]; /* SHA-256 للسطر = إيصال لا يُمحى */
+} jw_passage_t;
 
-/* Dynamic array of entries loaded from a corpus file. */
 typedef struct {
-    jawab_entry_t *entries;
-    size_t count;
-    size_t capacity;
-} jawab_corpus_t;
+    jw_passage_t *v;
+    size_t n, cap;
+    double avglen;
+} jw_index_t;
 
-/* Initialize an empty corpus with the given initial capacity (0 = default). */
-int jawab_corpus_init(jawab_corpus_t *corpus, size_t initial_capacity);
+typedef struct {
+    const jw_passage_t *p;
+    double score;
+} jw_hit_t;
 
-/* Free all memory owned by the corpus. Safe to call on a zeroed struct. */
-void jawab_corpus_free(jawab_corpus_t *corpus);
+void  jw_init(jw_index_t *ix);
+void  jw_free(jw_index_t *ix);
+int   jw_add_file(jw_index_t *ix, const char *path);
+int   jw_add_line(jw_index_t *ix, const char *line, const char *src);
+size_t jw_query(const jw_index_t *ix, const char *query, jw_hit_t *out, size_t k);
 
-/*
- * Load a corpus file. Each non-empty, non-comment line must be in the form:
- *   question|answer
- * Lines starting with '#' are treated as comments and skipped.
- * Returns 0 on success, -1 on failure (I/O error or malformed line).
- */
-int jawab_corpus_load(jawab_corpus_t *corpus, const char *path);
+uint64_t jw_fnv1a(const char *s);
+void jw_sha256(const void *data, size_t len, uint8_t out[32]);
+void jw_sha_hex(const uint8_t in[32], char out[65]);
 
-/*
- * Find the best-matching answer for `query` inside `corpus` using a
- * token-overlap (Jaccard-like) similarity score. Returns a pointer to the
- * stored answer string (owned by the corpus, do not free) or NULL if the
- * corpus is empty. If `out_score` is non-NULL, the best match score
- * (0.0 - 1.0) is written to it.
- */
-const char *jawab_answer(const jawab_corpus_t *corpus, const char *query,
-                          double *out_score);
-
-#ifdef __cplusplus
-}
 #endif
-
-#endif /* JAWAB_H */
