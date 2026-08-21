@@ -2,6 +2,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 static void usage(void){
     fprintf(stderr,
         "jawab v0.3 - sovereign offline retrieval (BM25 + SHA-256 receipts + mmap)\n"
@@ -122,6 +126,15 @@ static int cmd_audit_idx(const char *idx_path){
 }
 
 int main(int argc, char **argv){
+#ifdef _WIN32
+    /* Windows console defaults to a legacy OEM codepage (850/437), which
+     * renders UTF-8 multi-byte sequences (e.g. Arabic) as mojibake even
+     * though the underlying bytes -- and every SHA-256/FNV-1a receipt
+     * computed over them -- are correct. Force UTF-8 in/out so what the
+     * user sees on screen matches what jawab actually hashed. */
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+#endif
     if (argc < 2){ usage(); return 2; }
     const char *cmd = argv[1];
 
