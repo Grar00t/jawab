@@ -1,0 +1,20 @@
+# jawab seed corpus
+# Format: question|answer
+# Lines starting with '#' are comments. One Q/A pair per line.
+
+what is jawab|jawab is a minimal C11 question-answering engine that matches queries against a corpus using token overlap scoring.
+ما هو جواب|جواب هو محرك أسئلة وأجوبة مكتوب بلفة C11 يطابق الاستعلامات مع ملف بيانات باستخدام تقاطع الكلمات.
+who created jawab|jawab was created as a small experiment in lightweight, dependency-free C AI engines.
+what language is jawab written in|jawab is written in C11 with no external dependencies.
+what is C11|C11 is the ISO C standard published in 2011, adding features like anonymous structs, atomics, and improved Unicode support.
+how do i build jawab on linux|run 'make' in the project root, then execute './build/jawab corpus/seed.txt'.
+how do i build jawab on windows|run '.\build.ps1' in PowerShell from the project root, then execute '.\build\jawab.exe corpus\seed.txt'.
+كيف أبني جواب على ويندوز|شقّل الأمر .\build.ps1 في PowerShell من جذر المشروع، ثم نفّذ .\build\jawab.exe corpus\seed.txt.
+what is a corpus|a corpus is the text file of question and answer pairs that jawab loads to answer queries.
+how does jawab match questions|jawab tokenizes both the query and each stored question, then scores similarity using a Jaccard-like token overlap ratio.
+what is quantum computing|quantum computing uses qubits and quantum phenomena like superposition and entanglement to perform certain computations faster than classical computers.
+what is a VQE algorithm|VQE, the Variational Quantum Eigensolver, is a hybrid quantum-classical algorithm used to find the ground state energy of a quantum system.
+what is network defense|network defense refers to the practices and systems used to protect computer networks from unauthorized access, misuse, or attacks.
+what is riyadh|riyadh is the capital and largest city of Saudi Arabia.
+ما هي الرياض|الرياض هي عاصمة المملكة العربية السعودية وأكبر مدنها.
+exit|type :q or :quit to exit the jawab REPL.
