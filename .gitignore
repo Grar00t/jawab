@@ -1,0 +1,24 @@
+# Build output
+**/bin/
+**/obj/
+
+# Local diagnostic output
+**/*.log
+**/jawab-run-diagnostic.txt
+
+# Local generated engine artifacts
+jawab.exe
+index.jwidx
+*.jwidx
+
+# Desktop local data
+Jawab.Desktop/Data/
+Jawab.Desktop/Indexes/
+Jawab.Desktop/Embeddings/
+Jawab.Desktop/UserData/
+
+# Iterative UI backups
+Jawab.Desktop/*.backup
+
+# Optional generated image drafts
+Jawab.Desktop/Assets/*.jpg

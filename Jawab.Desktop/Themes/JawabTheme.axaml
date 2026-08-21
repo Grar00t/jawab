@@ -1,0 +1,30 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <Color x:Key="JawabBg">#0B1020</Color>
+  <Color x:Key="JawabSurface">#121A2F</Color>
+  <Color x:Key="JawabSurfaceAlt">#19233D</Color>
+  <Color x:Key="JawabBorder">#2A3858</Color>
+  <Color x:Key="JawabText">#EEF4FF</Color>
+  <Color x:Key="JawabMuted">#9FB0CF</Color>
+  <Color x:Key="JawabAccent">#58D5FF</Color>
+  <Color x:Key="JawabSuccess">#3DDC97</Color>
+  <Color x:Key="JawabWarning">#FFCC66</Color>
+
+  <SolidColorBrush x:Key="BgBrush" Color="{StaticResource JawabBg}" />
+  <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource JawabSurface}" />
+  <SolidColorBrush x:Key="SurfaceAltBrush" Color="{StaticResource JawabSurfaceAlt}" />
+  <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource JawabBorder}" />
+  <SolidColorBrush x:Key="TextBrush" Color="{StaticResource JawabText}" />
+  <SolidColorBrush x:Key="MutedBrush" Color="{StaticResource JawabMuted}" />
+  <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource JawabAccent}" />
+  <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource JawabSuccess}" />
+  <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource JawabWarning}" />
+
+  <x:Double x:Key="Space1">8</x:Double>
+  <x:Double x:Key="Space2">12</x:Double>
+  <x:Double x:Key="Space3">16</x:Double>
+  <x:Double x:Key="Space4">24</x:Double>
+  <x:Double x:Key="Radius">12</x:Double>
+
+</ResourceDictionary>

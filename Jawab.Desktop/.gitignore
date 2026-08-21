@@ -1,0 +1,14 @@
+bin/
+obj/
+*.backup
+*.log
+jawab-run-diagnostic.txt
+
+# User-local data and future indexes
+Data/
+Indexes/
+Embeddings/
+UserData/
+
+# Keep generated image assets local until final branding is approved
+Assets/*.jpg
